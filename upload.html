@@ -1,0 +1,829 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>图片上传与粘贴</title>
+<script src="qipan.js"></script>
+<script src="solver.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif;
+    background: linear-gradient(135deg, #fff5f0 0%, #fde8f0 50%, #f0e8ff 100%);
+    min-height: 100vh;
+    padding: 28px 16px;
+    color: #3a3a3a;
+  }
+  .container {
+    max-width: 680px;
+    margin: 0 auto;
+  }
+  h1 {
+    font-size: 26px;
+    font-weight: 700;
+    background: linear-gradient(90deg, #ff7eb3, #7eb8ff, #a78bfa);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: 22px;
+    text-align: center;
+    letter-spacing: 1px;
+  }
+
+  /* 显示区域 */
+  .gallery {
+    background: #fff;
+    border-radius: 18px;
+    padding: 20px;
+    min-height: 200px;
+    margin-bottom: 18px;
+    box-shadow: 0 8px 30px rgba(255, 126, 179, 0.10), 0 2px 6px rgba(0,0,0,0.04);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    transition: box-shadow 0.3s;
+  }
+  .gallery:empty::before {
+    content: "📷 发送的图片会显示在这里 ✨";
+    color: #c5c5c5;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 180px;
+    font-size: 14px;
+    letter-spacing: 0.5px;
+  }
+  .gallery img {
+    max-width: 100%;
+    max-height: 420px;
+    border-radius: 12px;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.12);
+    object-fit: cover;
+    transition: transform 0.25s, box-shadow 0.25s;
+  }
+  .gallery img:hover {
+    transform: translateY(-3px) scale(1.02);
+    box-shadow: 0 8px 22px rgba(0,0,0,0.18);
+  }
+
+  /* 输入区域 */
+  .input-area {
+    background: #fff;
+    border-radius: 18px;
+    padding: 20px;
+    box-shadow: 0 8px 30px rgba(255, 126, 179, 0.10), 0 2px 6px rgba(0,0,0,0.04);
+  }
+  .paste-hint {
+    background: linear-gradient(180deg, #fff9fa 0%, #fff 100%);
+    border: 2.5px dashed #ffc0cb;
+    border-radius: 14px;
+    padding: 26px 20px;
+    text-align: center;
+    color: #c98096;
+    font-size: 14px;
+    line-height: 1.7;
+    margin-bottom: 14px;
+    transition: all 0.3s ease;
+    cursor: pointer;
+    outline: none;
+  }
+  .paste-hint .sub-hint {
+    font-size: 12px;
+    color: #e0a0b3;
+    margin-top: 4px;
+  }
+  .paste-hint.paste-active {
+    border-color: #ff7eb3;
+    background: linear-gradient(180deg, #fff0f5 0%, #fde0ef 100%);
+    color: #ff7eb3;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 14px rgba(255, 126, 179, 0.2);
+  }
+  .paste-hint.has-image {
+    border-style: solid;
+    border-color: #52c41a;
+    background: linear-gradient(180deg, #f6ffed 0%, #edfbe0 100%);
+    color: #389e0d;
+  }
+  .paste-hint img {
+    max-width: 80%;
+    max-height: 160px;
+    border-radius: 10px;
+    margin-top: 10px;
+    box-shadow: 0 3px 12px rgba(0,0,0,0.1);
+  }
+  .paste-hint::before {
+    content: "🖱️📋";
+    display: block;
+    font-size: 30px;
+    margin-bottom: 4px;
+  }
+
+  .buttons {
+    display: flex;
+    gap: 10px;
+    align-items: stretch;
+  }
+  .btn {
+    flex: 1;
+    padding: 12px 18px;
+    border: none;
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.25s ease;
+    letter-spacing: 0.3px;
+  }
+  .btn-upload {
+    background: #fff0f5;
+    color: #d94b7f;
+    border: 1px solid #ffd6e4;
+  }
+  .btn-upload:hover {
+    background: #ffe0ec;
+    transform: translateY(-1px);
+    box-shadow: 0 3px 10px rgba(217, 75, 127, 0.2);
+  }
+  .btn-send {
+    background: linear-gradient(135deg, #ff7eb3, #a78bfa);
+    color: #fff;
+    box-shadow: 0 4px 12px rgba(255, 126, 179, 0.3);
+  }
+  .btn-send:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 18px rgba(255, 126, 179, 0.45);
+  }
+  .btn-send:active:not(:disabled) {
+    transform: translateY(0);
+  }
+  .btn-send:disabled {
+    background: #e0e0e0;
+    box-shadow: none;
+    cursor: not-allowed;
+    color: #aaa;
+  }
+  .btn-clear {
+    background: #fff1f0;
+    color: #cf1322;
+    flex: 0 0 auto;
+    padding: 12px 16px;
+    border: 1px solid #ffccc7;
+  }
+  .btn-clear:hover {
+    background: #ffccc7;
+    transform: translateY(-1px);
+    box-shadow: 0 3px 10px rgba(207, 19, 34, 0.2);
+  }
+  input[type="file"] { display: none; }
+
+  @media (max-width: 480px) {
+    .buttons { flex-wrap: wrap; }
+    .btn-clear { flex: 1; }
+    .btn-primary#extractBtn { flex: 1; }
+  }
+
+  /* ==== 提取结果 ==== */
+  .result-panel {
+    background: linear-gradient(180deg, #fff 0%, #fff9fa 100%);
+    border-radius: 18px;
+    padding: 20px;
+    margin-bottom: 18px;
+    box-shadow: 0 8px 30px rgba(124, 179, 255, 0.10), 0 2px 6px rgba(0,0,0,0.04);
+    border: 1px solid #eef3ff;
+    animation: slideDown 0.3s ease;
+  }
+  @keyframes slideDown {
+    from { opacity: 0; transform: translateY(-8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .result-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: #3a6bb0;
+    margin-bottom: 14px;
+  }
+  .result-compare {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+  }
+  .result-item {
+    text-align: center;
+    flex: 1;
+    min-width: 140px;
+  }
+  .result-label {
+    font-size: 12px;
+    color: #888;
+    margin-bottom: 6px;
+  }
+  .result-item img {
+    max-width: 100%;
+    max-height: 220px;
+    border-radius: 10px;
+    box-shadow: 0 3px 12px rgba(0,0,0,0.1);
+  }
+  .result-arrow {
+    font-size: 22px;
+    color: #ff7eb3;
+    flex: 0 0 auto;
+  }
+  .result-info {
+    font-size: 13px;
+    color: #555;
+    background: #f5f8ff;
+    padding: 10px 14px;
+    border-radius: 8px;
+    margin-bottom: 12px;
+    border-left: 3px solid #7eb8ff;
+  }
+  .result-actions {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+  .result-actions .btn-primary {
+    text-decoration: none;
+    text-align: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .result-debug {
+    background: #2d2d2d;
+    color: #d4d4d4;
+    padding: 12px;
+    border-radius: 8px;
+    font-size: 11px;
+    overflow-x: auto;
+    max-height: 240px;
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+  .btn-primary {
+    background: linear-gradient(135deg, #7eb8ff, #a78bfa);
+    color: #fff;
+    box-shadow: 0 4px 12px rgba(126, 184, 255, 0.3);
+  }
+  .btn-primary:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 18px rgba(126, 184, 255, 0.45);
+  }
+  .btn-ghost {
+    background: #f5f7ff;
+    color: #5b6b9b;
+    border: 1px solid #dfe6ff;
+  }
+  .btn-ghost:hover:not(:disabled) {
+    background: #e8edff;
+    transform: translateY(-1px);
+  }
+
+  /* ==== 规则标注面板 ==== */
+  .tools-row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    align-items: center;
+    margin-bottom: 12px;
+  }
+  .tools-row .btn { flex: 0 0 auto; padding: 8px 14px; font-size: 13px; }
+  .tools-row select {
+    padding: 8px 10px;
+    border-radius: 8px;
+    border: 1px solid #dfe6ff;
+    background: #fff;
+    color: #555;
+    font-size: 13px;
+    outline: none;
+  }
+  .tools-row .spacer { flex: 1; }
+  .tools-row #batchLabel { font-size: 12px; color: #7c6b9b; }
+  .board-wrap {
+    position: relative;
+    display: inline-block;
+    max-width: 100%;
+    border-radius: 14px;
+    overflow: hidden;
+    box-shadow: 0 4px 18px rgba(0,0,0,0.12);
+    line-height: 0;
+  }
+  .board-wrap img { display: block; max-width: 100%; height: auto; }
+  .ov-grid {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    pointer-events: none;
+  }
+  .ov-cell {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+    opacity: 0;
+    transform: scale(0.4);
+    transition: opacity 0.35s ease, transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  .ov-cell.show { opacity: 1; transform: scale(1); }
+  .ov-cell .mk { pointer-events: auto; cursor: help; }
+  .ov-cell.x .mk {
+    color: rgba(225, 30, 70, 0.9);
+    text-shadow: 0 0 3px #fff, 0 0 5px #fff;
+    font-weight: 700;
+  }
+  .ov-cell.cat .mk { filter: drop-shadow(0 1px 3px rgba(0,0,0,0.45)); }
+  .ov-cell.cat .mk { animation: catpop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1); }
+  @keyframes catpop {
+    0% { transform: scale(0.2); }
+    100% { transform: scale(1); }
+  }
+  .legend-row {
+    display: flex;
+    gap: 16px;
+    justify-content: center;
+    font-size: 12px;
+    color: #888;
+    margin-top: 10px;
+    flex-wrap: wrap;
+  }
+  .batch-log {
+    max-height: 220px;
+    overflow: auto;
+    text-align: left;
+    font-size: 12px;
+    background: #f7f8ff;
+    border: 1px solid #e8ecff;
+    border-radius: 10px;
+    padding: 10px 14px;
+    margin-top: 12px;
+    line-height: 1.6;
+  }
+  .log-item { padding: 5px 0; border-bottom: 1px dashed #e0e6ff; color: #555; }
+  .log-item:last-child { border-bottom: none; }
+  .log-item b { color: #a78bfa; margin-right: 6px; }
+  .log-item .why { color: #999; font-size: 11px; }
+  .solve-status {
+    text-align: center;
+    font-size: 13px;
+    margin-top: 12px;
+    padding: 10px;
+    border-radius: 10px;
+  }
+  .solve-status.ok { background: #f0fff4; color: #2f9e44; border: 1px solid #b7f5c4; }
+  .solve-status.warn { background: #fffbe6; color: #d48806; border: 1px solid #ffe58f; }
+  .solve-status.err { background: #fff1f0; color: #cf1322; border: 1px solid #ffccc7; }
+
+
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>📷 图片上传与粘贴</h1>
+
+  <div class="gallery" id="gallery"></div>
+
+  <!-- 提取结果 -->
+  <div class="result-panel" id="resultPanel" style="display:none;">
+    <div class="result-title">🧩 自动识别的棋盘</div>
+    <div class="result-body">
+      <div class="result-compare">
+        <div class="result-item">
+          <div class="result-label">原图</div>
+          <img id="resultOriginal" alt="原图">
+        </div>
+        <div class="result-arrow">➜</div>
+        <div class="result-item">
+          <div class="result-label">提取结果</div>
+          <img id="resultCropped" alt="提取棋盘">
+        </div>
+      </div>
+      <div class="result-info" id="resultInfo"></div>
+      <div class="result-actions">
+        <a class="btn btn-primary" id="downloadBtn" download="board.png">💾 下载棋盘</a>
+        <button class="btn btn-ghost" id="debugBtn">🔬 查看调试数据</button>
+      </div>
+      <pre class="result-debug" id="resultDebug" style="display:none;"></pre>
+    </div>
+  </div>
+
+  <!-- 规则标注（分批推理） -->
+  <div class="result-panel" id="annotatePanel" style="display:none;">
+    <div class="result-title">🐾 规则标注 · 分批推理</div>
+    <div class="tools-row">
+      <label style="font-size:12px;color:#888;">网格</label>
+      <select id="nSelect">
+        <option value="auto">自动检测</option>
+        <option value="5">5×5</option>
+        <option value="6">6×6</option>
+        <option value="7">7×7</option>
+        <option value="8">8×8</option>
+        <option value="9">9×9</option>
+        <option value="10">10×10</option>
+      </select>
+      <button class="btn btn-ghost" id="reAnalyzeBtn">🔄 重新分析</button>
+      <span class="spacer"></span>
+      <button class="btn btn-ghost" id="replayBtn">⏮ 重看</button>
+      <button class="btn btn-ghost" id="playBtn">▶ 播放</button>
+      <button class="btn btn-primary" id="stepBtn">下一批 ➜</button>
+      <span id="batchLabel"></span>
+    </div>
+    <div style="text-align:center;">
+      <div class="board-wrap" id="boardWrap">
+        <img id="boardImg" alt="棋盘">
+        <div class="ov-grid" id="ovGrid"></div>
+      </div>
+    </div>
+    <div class="legend-row">
+      <span>🐱 = 猫（图中已有 / 推理放置）</span>
+      <span>✕ = 规则排除（点击格子可看理由）</span>
+    </div>
+    <div class="solve-status" id="solveStatus2" style="display:none;"></div>
+    <div class="batch-log" id="batchLog" style="display:none;"></div>
+  </div>
+
+  <div class="input-area">
+    <div class="paste-hint" id="pasteHint" tabindex="0">
+      点击此区域后按 Ctrl+V 粘贴图片<br>
+      或选择下方按钮上传
+      <img id="previewImg" style="display:none;">
+    </div>
+    <div class="buttons">
+      <label class="btn btn-upload" for="fileInput">📁 选择图片</label>
+      <input type="file" id="fileInput" accept="image/*">
+      <button class="btn btn-send" id="sendBtn" disabled>➤ 发送</button>
+      <button class="btn btn-primary" id="extractBtn" disabled style="flex:0 0 auto;">🎯 提取棋盘</button>
+      <button class="btn btn-clear" id="clearBtn">✕</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const fileInput = document.getElementById('fileInput');
+const pasteHint = document.getElementById('pasteHint');
+const previewImg = document.getElementById('previewImg');
+const sendBtn = document.getElementById('sendBtn');
+const clearBtn = document.getElementById('clearBtn');
+const gallery = document.getElementById('gallery');
+const extractBtn = document.getElementById('extractBtn');
+const resultPanel = document.getElementById('resultPanel');
+const resultOriginal = document.getElementById('resultOriginal');
+const resultCropped = document.getElementById('resultCropped');
+const resultInfo = document.getElementById('resultInfo');
+const downloadBtn = document.getElementById('downloadBtn');
+const debugBtn = document.getElementById('debugBtn');
+const resultDebug = document.getElementById('resultDebug');
+
+let currentFile = null;  // { dataUrl, name }
+let lastDetectResult = null;
+
+// 从文件生成 dataURL
+function fileToDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = e => resolve(e.target.result);
+    reader.onerror = () => reject(new Error('读取文件失败'));
+    reader.readAsDataURL(file);
+  });
+}
+
+// 设置待发送图片
+async function setImage(file, sourceName) {
+  if (!file || !file.type.startsWith('image/')) {
+    alert('请提供有效的图片文件');
+    return;
+  }
+  try {
+    const dataUrl = await fileToDataUrl(file);
+    currentFile = { dataUrl, name: sourceName || file.name || '粘贴图片' };
+    previewImg.src = dataUrl;
+    previewImg.style.display = 'block';
+    pasteHint.classList.add('has-image');
+    pasteHint.classList.remove('paste-active');
+    sendBtn.disabled = false;
+    extractBtn.disabled = false;
+    // 隐藏之前的结果
+    resultPanel.style.display = 'none';
+    lastDetectResult = null;
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+// 点击上传
+fileInput.addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (file) setImage(file);
+});
+
+// 点击粘贴区域聚焦
+pasteHint.addEventListener('click', () => {
+  pasteHint.focus();
+  pasteHint.classList.add('paste-active');
+});
+
+// 离开粘贴区域取消高亮
+pasteHint.addEventListener('blur', () => {
+  pasteHint.classList.remove('paste-active');
+});
+
+// 全局粘贴监听（剪贴板有图片就接收）
+document.addEventListener('paste', async e => {
+  const items = e.clipboardData && e.clipboardData.items;
+  if (!items) return;
+  for (const item of items) {
+    if (item.kind === 'file' && item.type.startsWith('image/')) {
+      e.preventDefault();
+      const file = item.getAsFile();
+      if (file) await setImage(file, '粘贴图片.png');
+      return;
+    }
+  }
+  // 没有图片则提示
+  pasteHint.classList.add('paste-active');
+  setTimeout(() => pasteHint.classList.remove('paste-active'), 800);
+});
+
+// 拖拽支持
+['dragover', 'drop'].forEach(evt => {
+  document.addEventListener(evt, e => e.preventDefault());
+});
+pasteHint.addEventListener('dragover', e => {
+  e.preventDefault();
+  pasteHint.classList.add('paste-active');
+});
+pasteHint.addEventListener('dragleave', () => {
+  pasteHint.classList.remove('paste-active');
+});
+pasteHint.addEventListener('drop', async e => {
+  e.preventDefault();
+  pasteHint.classList.remove('paste-active');
+  const file = e.dataTransfer.files[0];
+  if (file) await setImage(file);
+});
+
+// 发送
+sendBtn.addEventListener('click', () => {
+  if (!currentFile) return;
+  const img = document.createElement('img');
+  img.src = currentFile.dataUrl;
+  img.alt = currentFile.name;
+  gallery.appendChild(img);
+  resetInput();
+});
+
+// 清除当前待发送
+clearBtn.addEventListener('click', resetInput);
+
+function resetInput() {
+  currentFile = null;
+  fileInput.value = '';
+  previewImg.style.display = 'none';
+  previewImg.src = '';
+  pasteHint.classList.remove('has-image', 'paste-active');
+  sendBtn.disabled = true;
+  extractBtn.disabled = true;
+  resultPanel.style.display = 'none';
+  lastDetectResult = null;
+  resultDebug.style.display = 'none';
+}
+
+// 自动提取棋盘
+extractBtn.addEventListener('click', async () => {
+  if (!currentFile) return;
+  extractBtn.disabled = true;
+  extractBtn.textContent = '⏳ 识别中...';
+  try {
+    const result = await qipan.detectBoard(currentFile.dataUrl);
+    lastDetectResult = result;
+    showResult(result);
+  } catch (err) {
+    console.error('[qipan] 识别失败调试数据:', err.debug);
+    alert('识别失败：' + err.message + '（调试数据已输出到控制台 F12）');
+  } finally {
+    extractBtn.disabled = false;
+    extractBtn.textContent = '🎯 提取棋盘';
+  }
+});
+
+function showResult(result) {
+  resultOriginal.src = currentFile.dataUrl;
+  resultCropped.src = result.croppedDataUrl;
+  resultInfo.innerHTML =
+    `✅ 检测到棋盘区域 <b>(${result.x}, ${result.y}) → ${result.w}×${result.h}</b>` +
+    `（占原图 ${(result.w * result.h / (result.debug.workW * result.debug.workH) * 100).toFixed(1)}%）`;
+  downloadBtn.href = result.croppedDataUrl;
+  resultDebug.textContent = JSON.stringify(result.debug, null, 2);
+  resultPanel.style.display = 'block';
+  resultPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+debugBtn.addEventListener('click', () => {
+  const isVisible = resultDebug.style.display !== 'none';
+  resultDebug.style.display = isVisible ? 'none' : 'block';
+});
+
+/* ================= 规则标注（分批推理） ================= */
+const annotatePanel = document.getElementById('annotatePanel');
+const nSelect = document.getElementById('nSelect');
+const reAnalyzeBtn = document.getElementById('reAnalyzeBtn');
+const replayBtn = document.getElementById('replayBtn');
+const playBtn = document.getElementById('playBtn');
+const stepBtn = document.getElementById('stepBtn');
+const batchLabel = document.getElementById('batchLabel');
+const boardImg = document.getElementById('boardImg');
+const ovGrid = document.getElementById('ovGrid');
+const solveStatus2 = document.getElementById('solveStatus2');
+const batchLog = document.getElementById('batchLog');
+
+// 图片加载完成后再校准一次格子字号
+boardImg.addEventListener('load', () => { if (anaResult) applyReveal(); });
+
+let anaResult = null;      // catSolver.analyze 的结果
+let cellInfo = [];         // 每格 {initialCat, preX, elimBatch, placeBatch, reasons[]}
+let revealIdx = 0;         // 当前展示到第几批
+let playTimer = null;
+let ovs = [];              // 每格的 overlay DOM
+
+// 在提取结果的操作区里加一个入口按钮
+(function () {
+  const btn = document.createElement('button');
+  btn.id = 'annotateBtn';
+  btn.className = 'btn btn-primary';
+  btn.textContent = '🐾 规则标注';
+  btn.style.flex = '1';
+  document.querySelector('#resultPanel .result-actions').appendChild(btn);
+  btn.addEventListener('click', () => {
+    if (!lastDetectResult) return;
+    annotatePanel.style.display = 'block';
+    annotatePanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    runAnnotate();
+  });
+})();
+
+function showStatus(cls, text) {
+  solveStatus2.className = 'solve-status ' + cls;
+  solveStatus2.textContent = text;
+  solveStatus2.style.display = 'block';
+}
+
+async function runAnnotate() {
+  stopPlay();
+  showStatus('warn', '⏳ 正在切格、取色、聚类、推理…');
+  const nOpt = nSelect.value === 'auto' ? null : parseInt(nSelect.value, 10);
+  try {
+    anaResult = await catSolver.analyze(lastDetectResult.croppedDataUrl, { N: nOpt });
+    boardImg.src = lastDetectResult.croppedDataUrl;
+    buildOverlay();
+    revealIdx = 0;
+    renderLog();
+    applyReveal();
+    const gridInfo = `（${anaResult.N}×${anaResult.N} 网格，识别 ${anaResult.clusters.length} 色）`;
+    if (anaResult.contradiction) showStatus('err', `❌ ${anaResult.contradiction}${gridInfo}。可尝试在左上角更换网格尺寸后「重新分析」`);
+    else if (anaResult.solved) showStatus('ok', `🎉 完整解！共 ${anaResult.clusters.length} 只猫全部定位${gridInfo}`);
+    else {
+      const s = (anaResult.stall || [])
+        .filter(u => u.cands.length)
+        .map(u => `${u.name}剩${u.cands.length}选 ${u.cands.map(([r, c]) => `(${r + 1},${c + 1})`).join('')}`)
+        .join('；');
+      showStatus('warn', `⚠️ 传播停止${gridInfo}。卡点 → ${s || '见日志'}`);
+    }
+  } catch (err) {
+    if (err.needN) showStatus('warn', '⚠️ 无法自动检测网格大小，请在上方手动选择后点「重新分析」');
+    else showStatus('err', '❌ 分析失败：' + err.message);
+    console.error('[solver] 分析失败:', err);
+  }
+}
+
+function buildOverlay() {
+  const { N, isCat, isX, batches } = anaResult;
+  ovGrid.style.gridTemplateColumns = `repeat(${N}, 1fr)`;
+  ovGrid.style.gridTemplateRows = `repeat(${N}, 1fr)`;
+  ovGrid.innerHTML = '';
+  ovs = [];
+  cellInfo = [];
+  for (let r = 0; r < N; r++) {
+    cellInfo.push([]);
+    for (let c = 0; c < N; c++) {
+      cellInfo[r].push({ initialCat: isCat[r][c], preX: isX[r][c], elimBatch: null, placeBatch: null, reasons: [] });
+    }
+  }
+  // 图中已标 ✕
+  for (let r = 0; r < N; r++)
+    for (let c = 0; c < N; c++)
+      if (isX[r][c] && !isCat[r][c]) cellInfo[r][c].reasons.push('图中已标 ✕');
+  // 各批次写入批次号与理由
+  batches.forEach((b, i) => {
+    const no = i + 1;
+    b.E.forEach(e => {
+      const ci = cellInfo[e.r][e.c];
+      if (ci.elimBatch === null) ci.elimBatch = no;
+      ci.reasons.push(`第${no}批：${e.reason}`);
+    });
+    b.P.forEach(p => {
+      const ci = cellInfo[p.r][p.c];
+      if (ci.placeBatch === null) ci.placeBatch = no;
+      ci.reasons.push(`第${no}批：${p.reason} → 放置 🐱`);
+    });
+  });
+  for (let r = 0; r < N; r++) {
+    ovs.push([]);
+    for (let c = 0; c < N; c++) {
+      const d = document.createElement('div');
+      d.className = 'ov-cell';
+      const mk = document.createElement('span');
+      mk.className = 'mk';
+      mk.title = cellInfo[r][c].reasons.join('\n') || '';
+      d.appendChild(mk);
+      ovGrid.appendChild(d);
+      ovs[r].push(d);
+    }
+  }
+}
+
+function applyReveal() {
+  if (!anaResult) return;
+  const { N, batches } = anaResult;
+  const cellPx = (boardImg.clientWidth || 300) / N;
+  ovGrid.style.fontSize = Math.max(10, cellPx * 0.52) + 'px';
+  for (let r = 0; r < N; r++)
+    for (let c = 0; c < N; c++) {
+      const ci = cellInfo[r][c];
+      const d = ovs[r][c];
+      const isCatShown = ci.initialCat || (ci.placeBatch !== null && ci.placeBatch <= revealIdx);
+      const isXShown = !isCatShown && ci.preX === true ||
+                       !isCatShown && ci.elimBatch !== null && ci.elimBatch <= revealIdx;
+      d.className = 'ov-cell' + (isCatShown ? ' cat show' : isXShown ? ' x show' : '');
+      d.firstChild.textContent = isCatShown ? '🐱' : isXShown ? '✕' : '';
+    }
+  batchLabel.textContent = `批次 ${revealIdx} / ${batches.length}` +
+    (revealIdx >= batches.length ? (anaResult.solved ? ' 🎉完整解' : '') : '');
+  stepBtn.disabled = revealIdx >= batches.length;
+}
+
+function renderLog() {
+  if (!anaResult) return;
+  batchLog.style.display = 'block';
+  const fmt = list => list.map(x => `(${x.r + 1},${x.c + 1})`).join(' ');
+  const whys = (list, key) => {
+    const m = {};
+    list.forEach(x => { (m[x[key]] = m[x[key]] || []).push(x); });
+    return Object.keys(m).map(k => `${k}→${fmt(m[k])}`).join('；');
+  };
+  batchLog.innerHTML = '<div class="log-item"><b>初始</b>图中已放的 🐱 与已标 ✕ 直接显示</div>' +
+    anaResult.batches.slice(0, revealIdx).map((b, i) => {
+      const parts = [];
+      if (b.P.length) parts.push(`放置 🐱：${fmt(b.P)}`);
+      if (b.E.length) parts.push(`排除 ✕：${fmt(b.E)}`);
+      const detail = [];
+      if (b.P.length) detail.push(whys(b.P, 'reason'));
+      if (b.E.length) detail.push(whys(b.E, 'reason'));
+      return `<div class="log-item"><b>第 ${i + 1} 批</b>${parts.join('　')}` +
+        `<br><span class="why">${detail.join('<br>')}</span></div>`;
+    }).join('');
+}
+
+stepBtn.addEventListener('click', () => {
+  stopPlay();
+  if (!anaResult || revealIdx >= anaResult.batches.length) return;
+  revealIdx++;
+  applyReveal();
+  renderLog();
+});
+
+replayBtn.addEventListener('click', () => {
+  stopPlay();
+  revealIdx = 0;
+  applyReveal();
+  renderLog();
+});
+
+playBtn.addEventListener('click', () => {
+  if (playTimer) { stopPlay(); return; }
+  if (!anaResult) return;
+  if (revealIdx >= anaResult.batches.length) revealIdx = 0;
+  playBtn.textContent = '⏸ 暂停';
+  playTimer = setInterval(() => {
+    if (!anaResult || revealIdx >= anaResult.batches.length) { stopPlay(); return; }
+    revealIdx++;
+    applyReveal();
+    renderLog();
+  }, 1200);
+});
+
+function stopPlay() {
+  if (playTimer) { clearInterval(playTimer); playTimer = null; }
+  playBtn.textContent = '▶ 播放';
+}
+
+reAnalyzeBtn.addEventListener('click', runAnnotate);
+window.addEventListener('resize', () => { if (anaResult) applyReveal(); });
+
+</script>
+</body>
+</html>
